@@ -1,16 +1,18 @@
+mod extractor;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
     routing::get,
     Router,
 };
-use tracing_subscriber::{
-    filter::Targets, fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter,
-};
-
 use std::net::SocketAddr;
 use tower_http::trace::{self, TraceLayer};
 use tracing::{error, info_span, instrument, Level, Span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+use extractor::HeaderExtractor;
 
 #[tokio::main]
 async fn main() {
@@ -39,6 +41,19 @@ async fn hello_world() -> &'static str {
     "Hello World!"
 }
 
+/// Constructs a span at the info level that will wrap the handling of the
+/// incoming request.
 fn make_span(request: &Request<Body>) -> Span {
     info_span!("request", method = %request.method(), uri = %request.uri(), version = ?request.version(), headers = ?request.headers())
+}
+
+/// Trace context propagation. Associates the current span with the OTel trace
+/// of the given request, if any and valid.
+pub fn accept_trace(request: Request<Body>) -> Request<Body> {
+    // Current context, if no or invalid data is received.
+    let parent_context = opentelemetry::global::get_text_map_propagator(|propagator| {
+        propagator.extract(&HeaderExtractor(request.headers()))
+    });
+    Span::current().set_parent(parent_context);
+    request
 }
