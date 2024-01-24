@@ -23,7 +23,7 @@ async fn main() {
 
     let app = Router::new().route("/", get(hello_world)).layer(
         TraceLayer::new_for_http()
-            .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+            .make_span_with(make_span)
             .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
     );
 
