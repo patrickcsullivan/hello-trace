@@ -15,6 +15,7 @@ name = "client"
 path = "src/client/main.rs"
 
 [dependencies]
+
 axum = "0.7.4"
 opentelemetry = "0.21.0"
 opentelemetry-http = "0.10.0"
@@ -27,3 +28,6 @@ tracing-opentelemetry = "0.22.0"
 tracing-subscriber = { version = "0.3.0", features = ["json", "env-filter"] }
 reqwest = { version = "0.11", features = ["json"] }
 url = { version = "2.4.1", features = ["serde"] }
+opentelemetry_sdk = "0.21.2"
+opentelemetry-stdout = { version = "0.2.0", features = ["trace"] }
+axum-tracing-opentelemetry = "0.16.0"
