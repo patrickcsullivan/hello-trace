@@ -69,7 +69,8 @@ pub fn accept_trace(request: Request<Body>) -> Request<Body> {
 
     println!("PARENT CONTEXT: {:?}", parent_context);
     println!("SPAN BEFORE: {:?}", Span::current());
-    Span::current().set_parent(parent_context);
+    Span::current().set_parent(parent_context.clone());
     println!("SPAN AFTER: {:?}\n", Span::current());
+    println!("PARENT CONTEXT: {:?}", parent_context);
     request
 }
