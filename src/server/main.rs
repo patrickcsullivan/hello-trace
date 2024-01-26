@@ -10,6 +10,7 @@ use axum::{
     Extension, Router,
 };
 use extractor::HeaderExtractor;
+use tracing::error;
 use std::net::SocketAddr;
 use tower::ServiceBuilder;
 use tower_http::trace::{self, TraceLayer};
@@ -27,6 +28,8 @@ use opentelemetry_sdk::export::trace::SpanExporter;
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::TracerProvider};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use opentelemetry_otlp::WithExportConfig;
+use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 
 #[derive(Debug, Clone)]
 pub struct AppState {}
@@ -43,7 +46,10 @@ async fn main() {
 
     let app = Router::new()
         .route("/:word", get(handle_echo))
-        .route_layer(axum::middleware::from_fn(extract_context))
+        //.route_layer(axum::middleware::from_fn(extract_context))
+        .layer(OtelInResponseLayer::default())
+        //start OpenTelemetry trace on incoming request
+        .layer(OtelAxumLayer::default())
         .with_state(AppState::new());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
@@ -54,10 +60,16 @@ async fn main() {
 
 fn init_tracer() {
     global::set_text_map_propagator(TraceContextPropagator::new());
-    let provider = TracerProvider::builder()
-        .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
-        .build();
-    global::set_tracer_provider(provider);
+    // let provider = TracerProvider::builder()
+    // .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
+    // .build();
+    // global::set_tracer_provider(provider);
+    // let tracer = opentelemetry_otlp::new_pipeline()
+    //   .tracing()
+    //   .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+    //   .install_simple();
+    init_tracing_opentelemetry::tracing_subscriber_ext::init_subscribers().unwrap();
+
 }
 
 async fn extract_context(
@@ -98,12 +110,13 @@ async fn handle_echo(State(_state): State<AppState>, Path(word): Path<String>) -
     // close span?
     word
 }
-
+#[tracing::instrument]
 async fn do_work(s: String) -> String {
     let span = new_span("do_work".to_owned(), SpanKind::Server);
     let _ctx = Context::current().with_span(span);
     // log something
     // close span?
+    error!("some error");
     s
 }
 

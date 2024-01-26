@@ -21,6 +21,8 @@ use opentelemetry_sdk::export::trace::SpanExporter;
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::TracerProvider};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use opentelemetry_otlp::WithExportConfig;
+
 
 fn init_tracer() {
     global::set_text_map_propagator(TraceContextPropagator::new());
@@ -29,8 +31,13 @@ fn init_tracer() {
     // Install stdout exporter pipeline to be able to retrieve the collected spans.
     // For the demonstration, use `Sampler::AlwaysOn` sampler to sample all traces.
     let provider = TracerProvider::builder()
-        .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
-        .build();
+    .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
+    .build();
+    global::set_tracer_provider(provider);
+    let tracer = opentelemetry_otlp::new_pipeline()
+      .tracing()
+      .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+      .install_simple();
     // Send traces through this and then they get sent to wherever they need to
     // go - DD or stdout.
 
@@ -39,8 +46,6 @@ fn init_tracer() {
 
     // Logger would be totally separate.
     // It just prints to stdout and in AWS those get collected and forwarded to DD.
-
-    global::set_tracer_provider(provider);
 }
 
 #[tokio::main]
