@@ -1,3 +1,13 @@
+use reqwest::{
+    header::{HeaderName, HeaderValue},
+    StatusCode,
+};
+use std::{collections::HashMap, io::BufRead, net::SocketAddr};
+use tokio::join;
+use tower::ServiceBuilder;
+use tower_http::trace::{self, TraceLayer};
+use tracing::{error, info_span, instrument, span_enabled, Level, Span};
+
 use opentelemetry::global::ObjectSafeSpan;
 use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry::trace::{FutureExt, SpanBuilder};
@@ -9,16 +19,6 @@ use opentelemetry::{
 use opentelemetry_http::HeaderInjector;
 use opentelemetry_sdk::export::trace::SpanExporter;
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::TracerProvider};
-use reqwest::{
-    header::{HeaderName, HeaderValue},
-    StatusCode,
-};
-use std::{collections::HashMap, io::BufRead, net::SocketAddr};
-use tokio::join;
-use tower::ServiceBuilder;
-use tower_http::trace::{self, TraceLayer};
-use tracing::{error, info_span, instrument, span_enabled, Level, Span};
-
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -55,8 +55,8 @@ async fn main() {
 
     let client = HelloClient::new();
 
-    for _line in stdin.lock().lines() {
-        handle_hello(&client).await;
+    for line in stdin.lock().lines() {
+        handle_hello(&client, &line.unwrap()).await;
     }
 }
 
@@ -64,7 +64,7 @@ pub fn client_tracer_name() -> String {
     "client".to_owned()
 }
 
-pub async fn handle_hello(client: &HelloClient) {
+pub async fn handle_hello(client: &HelloClient, word: &str) {
     let tracer = global::tracer(client_tracer_name());
 
     let ctx = Context::default();
@@ -73,20 +73,10 @@ pub async fn handle_hello(client: &HelloClient) {
         .with_kind(SpanKind::Server)
         .start(&tracer);
     let ctx = ctx.with_span(span);
-
-    println!("CONTEXT: {:?}", ctx);
-
-    // No context
-
-    client.hello(&ctx).await;
-
-    // // Do impressive AI bitcoining and NFTs.
-    // join!(client.hello(ctx), client.hello(ctx)).await;
-
-    // // Only need to do this when this is truly a sub-function that is under the
-    // // parent span.
-    // let ctx = client.hello(ctx);
-    // client.hello(ctx);
+    // Do impressive work.
+    client.hello(&ctx, word).await;
+    // Should I end the span here?
+    ctx.span().end()
 }
 
 pub struct HelloClient {
@@ -100,7 +90,7 @@ impl HelloClient {
         }
     }
 
-    pub async fn hello(&self, ctx1: &Context) {
+    pub async fn hello(&self, ctx1: &Context, word: &str) {
         let span_name = "call_hello";
         let tracer = global::tracer(client_tracer_name());
         let span = SpanBuilder::from_name(span_name)
@@ -112,7 +102,7 @@ impl HelloClient {
 
         let mut req = self
             .http_client
-            .get("http://127.0.0.1:3000/")
+            .get(format!("http://127.0.0.1:3000/{word}"))
             .build()
             .unwrap();
         global::get_text_map_propagator(|propagator| {
@@ -120,6 +110,7 @@ impl HelloClient {
         });
         let res = self.http_client.execute(req).await.unwrap();
         println!("response status code: {:?}", res.status());
+        println!("response: {:?}", res);
 
         // let propagator = TraceContextPropagator::new();
         // let mut fields = HashMap::new();
